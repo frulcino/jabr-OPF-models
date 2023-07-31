@@ -2,7 +2,7 @@
 Implemented in matlab using cvx the Jabr inequality model (jabr2.m) as definied in "Mathematical Programming formulations for the Alternating Current Optimal Power Flow problem" by Bienstock. Also implemented the linearization introduced by Bienstock in the Gurobi seminar.
 
 # Scripts descrioption
-# Mains scripts
+## Mains scripts
 Jabr2.m: Implementation of the Jabr inequality model  as definied in "Mathematical Programming formulations for the Alternating Current Optimal Power Flow problem" by Bienstock.
 
 Jabr2LinBiestock.m the Jabr inequality model using the power loss inequality introduced by Bienstock and Munos in "On linear relaxation of OPF problems"
