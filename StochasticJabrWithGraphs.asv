@@ -128,7 +128,7 @@ epsilonMatrix = [0.02,0.04,0.06]; % wasserstein distance
 for id_eps = 1:3
     Varepsilon = epsilonMatrix(id_eps)
     for  id_rho = 1:length(rho_Matrix)
-        rho = rho_Matrix(id_rho);
+        rho = rho_Matrix(i);
 
         disp(['..................................................................................'])
         disp(['Wasserstein distance:    ', num2str(Varepsilon)]);
@@ -370,17 +370,17 @@ for id_eps = 1:3
          %% Data save and plot
         % save total operational cost and sum-up CVaR values of all line
         % constraints violation
-        Cost_Data(id_rho,id_eps) = Fop;   
-        CVaR_Data(id_rho,id_eps) = Frisk; % 
+        Cost_Data(i,j) = Fop;   
+        CVaR_Data(i,j) = Frisk; % 
 
         %PGn at each generator
-        PG(1:Ngen,id_rho,id_eps) = PGn;
-        QG(1:Ngen,id_rho,id_eps) = QGn;
+        PG(1:Ngen,i,j) = PGn;
+        QG(1:Ngen,i,j) = QGn;
 
         %un,cn,sn
-        U(1:Nbus,id_rho,id_eps) = un;
-        S(1:Nbranch,id_rho,id_eps) = sn;
-        C(1:Nbranch,id_rho,id_eps) = cn;
+        U(1:Nbus,i,j) = un;
+        S(1:Nbranch,i,j) = sn;
+        C(1:Nbranch,i,j) = cn;
 
         % save reserve policies
 
