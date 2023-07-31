@@ -371,7 +371,7 @@ for id_eps = 1:3
         % save total operational cost and sum-up CVaR values of all line
         % constraints violation
         Cost_Data(id_rho,id_eps) = Fop;   
-        CVaR_Data(id_rho,id_eps) = Frisk; % 
+        CVaR_Data(id_rho,id_eps) = Frisk/rho; % 
 
         %PGn at each generator
         PG(1:Ngen,id_rho,id_eps) = PGn;
@@ -449,20 +449,20 @@ for i = 1:6
     subplot(3,2,i)
     
     % Plotting the voltage values of 3 scenarios (or cases) for the selected bus
-    plot(rho_Matrix, U(sixbus(i),:,1),'o-','LineWidth',1.5)
+    plot(rho_Matrix, U(sixbus(i),:,1)./U(refBus,:,1),'o-','LineWidth',1.5)
     hold on
-    plot(rho_Matrix, U(sixbus(i),:,2),'*-','LineWidth',1.5)
-    plot(rho_Matrix, U(sixbus(i),:,3),'s-','LineWidth',2)
+    plot(rho_Matrix, U(sixbus(i),:,2)./U(refBus,:,2),'*-','LineWidth',1.5)
+    plot(rho_Matrix, U(sixbus(i),:,3)./U(refBus,:,3),'s-','LineWidth',2)
     
     % Plotting the nominal voltage limits of the selected bus
-    nominal_VMlimit = mpc.bus(sixbus(i), VMAX); % Fetching the max nominal voltage
+    nominal_VMlimit = mpc.bus(sixbus(i), VMAX)^2; % Fetching the max nominal voltage
     plot(rho_Matrix, nominal_VMlimit .* ones(size(rho_Matrix)), 'k--', 'LineWidth', 2)
-    nominal_Vmlimit = mpc.bus(sixbus(i), VMIN); % Fetching the min nominal voltage
+    nominal_Vmlimit = mpc.bus(sixbus(i), VMIN)^2; % Fetching the min nominal voltage
     plot(rho_Matrix, nominal_Vmlimit .* ones(size(rho_Matrix)), 'r--', 'LineWidth', 2)  % Changed color to red for distinction
     
     legend([char(949),'  = 0.02'], [char(949), '  = 0.04'], [char(949), '  = 0.06'], 'Vmax', 'Vmin')  % Updated legend
     xlabel('weight factor \rho')
-    ylabel('Voltage^2 (MW)')  
+    ylabel('Voltage^2 p.u.')  
     title(['Voltage at bus ', num2str(sixbus(i))])
     set(gca,'FontSize',13);
     grid on
@@ -488,7 +488,7 @@ saveas(gcf, 'Cost_Plot.png'); % Saves the current figure (gcf = get current figu
 % Plot CVaR
 figure;
 for j=1:3
-    plot(rho_Matrix, CVaR_Data(:,j), plotStyles{j},'LineWidth',1.5)
+    plot(rho_Matrix, CVaR_Data(:,j)./rho_Matrix, plotStyles{j},'LineWidth',1.5)
     hold on
 end
 
