@@ -437,9 +437,9 @@ mpc.gencost = [
 	2	0	0	3	0.01	40	0;
 	2	0	0	3	0.01	40	0;
 ];
-%%Fmax
 
-mpc.Fmax = [500 % changed
+%Powerflow limit at each brunch p.u.
+mpc.Fmax = [500 % changed 
     500 ; % changed
     500 ;
     175 ;

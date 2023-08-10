@@ -38,7 +38,7 @@ Ns = 6;% set Number of scenarios for distributionally robust optimization (30)
 Nxi = 3; % set Number of stochastic variables (number of renewable generators)
 beta = 0.01; % CVar level
 rho_Matrix = [10,100,300,500,1000,1500,2000,2500,3000];
-epsilonMatrix = [0.00,0.0001,0.001,0.01,0.1,0.2]; % wasserstein distance
+epsilonMatrix = [0.00,0.0001,0.001,0.01,0.1]; % wasserstein distance
 %% define named indices into bus, branch matrices
 [PQ, PV, REF, NONE, BUS_I, BUS_TYPE, PD, QD, GS, BS, BUS_AREA, VM, ...
     VA, BASE_KV, ZONE, VMAX, VMIN, LAM_P, LAM_Q, MU_VMAX, MU_VMIN] = idx_bus; 

@@ -1,5 +1,9 @@
+%Implementazione 
+%con meno auxiliary variables
+
 %%TODOS
-%%con molti auxiliary variable
+%todo: should we implement normal constraints on the nominal values? --->
+%diminuisce reliance on rho
 %todo: move affine inequalities to policy using policy continuity norm.
 %todo: actually consider polytope (not considere in AFF1)
 %todo: implement power flow constraints
@@ -83,6 +87,7 @@ Pd = bus(:,3);
 wind = mpc.wind;
 Nwind = size(wind,1);
 Pwind = zeros(Nbus,1);
+wingIdx = size(mpc.wind,1);
 
 for i = 1:Nwind
     Pwind(wind(i,1)) = wind(i,2);
@@ -94,11 +99,11 @@ loadlocation = find(bus(:,3)>0);
 load = mpc.bus(find(bus(:,3)>0),[1,3]);
 Nload = size(load,1);
 
-Ns = 3;% set Number of scenarios for distributionally robust optimization (30)
+Ns = 2;% set Number of scenarios for distributionally robust optimization (30)
 Nxi = 3; % set Number of stochastic variables (number of renewable generators)
 beta = 0.01; % CVar level
 rho_Matrix = [1,10,30:30:900];
-
+rho = 20;
 %% Costructing matrices
 
 [Yff, Yft, Ytf, Ytt] = Ybranch(mpc);
@@ -136,7 +141,7 @@ pause
 %% Distribution Robust Optimization (wasserstein distance = 0.00)
 Varepsilon = 0.020; % wasserstein distance
 Num = 1;% location index of rho matrix
-rho = 20
+
 %for  i = 1:length(rho_Matrix)
     %rho = rho_Matrix(i);
  
@@ -145,9 +150,8 @@ rho = 20
     %disp(['Current weight factor:   ', num2str(rho)]);
     %disp(["round number:",i,"out of", size])
     % Set up Gurobi parameters
-    gurobi_params = struct();
-    gorobi_params.BarHomogeneous = 1;
-    
+    %gurobi_params = struct();
+    %gorobi_params.BarHomogeneous = 1;
     cvx_begin
     cvx_solver MOSEK
     
@@ -184,46 +188,45 @@ rho = 20
     variable lambdaPL(Nbranch)
     variable sPL(Nbranch,Ns)
     %variable gammaPL(Nbranch,Ns,2)
-    variable APL(Nbranch,Ns)
-    variable bPL(Nbranch)
+    %variable APL(Nbranch,Ns)
+    %variable bPL(Nbranch)
     
     
     %voltage mangitude constraint finite reduction variable
     variable lambdaVm(Nbus) %for minimum voltage
     variable sVm(Nbus,Ns)
     %variable gammaVm(Nbus,Ns,2)
-    variable AVm(Nbus,Ns)
-    variable bVm(Nbus)
+    %variable AVm(Nbus,Ns)
+    %variable bVm(Nbus)
     
     variable lambdaVM(Nbus)
     variable sVM(Nbus,Ns)
     %variable gammaVM(Nbus,Ns,2)
-    variable AVM(Nbus,Ns)
-    variable bVM(Nbus) 
+    %variable AVM(Nbus,Ns)
+    %variable bVM(Nbus) 
     
     %PG magnitude constraing finite reduction variable
     variable lambdaPGm(Ngen) %for minimum voltage
     variable sPGm(Ngen,Ns)
     %variable gammaPGm(Ngen,Ns,2)
-    variable APGm(Ngen,Ns)
-    variable bPGm(Ngen) 
+    %variable APGm(Ngen,Ns)
+    %variable bPGm(Ngen) 
     
     variable lambdaPGM(Ngen)
     variable sPGM(Ngen,Ns)
     %variable gammaPGM(Ngen,Ns,2)
-    variable APGM(Ngen,Ns)
-    variable bPGM(Ngen) 
+    %variable APGM(Ngen,Ns)
+    %variable bPGM(Ngen) 
     
-    F = 0;
+    Fop = 0;
     % operation costs (avarage over dataset)
     for i = 1:Ngen
-        F = F + sum( gencost(i,5)*(PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1) + PGn(i)).^2 +(gencost(i,6))*(PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1) + PGn(i)) + gencost(i,7));
-        
+        Fop = Fop + sum( gencost(i,5)*(PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1) + PGn(i)).^2 +(gencost(i,6))*(PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1) + PGn(i)) + gencost(i,7));
     end
-    F = F./Ns;
+    Fop = Fop./Ns;
     % cost of constraints violation (finite reduction)
     Frisk = (sum(sum(sPL)) + sum(sum(sVM + sVm)) + sum(sum(sPGM+sPGm)))/Ns + Varepsilon*(sum(sum(lambdaPL)) + sum(sum(lambdaVM+lambdaVm)) + sum(sum(lambdaPGM+lambdaPGm)));
-    F=F +  Frisk;
+    F=Fop +  Frisk;
     minimize F
     subject to
     disp(['Adding line constraints...'])
@@ -242,13 +245,13 @@ rho = 20
             Qn(b,2) == -Btt(b)*un(t) - Btf(b)*cn(b) - Gtf(b)*sn(b);
             
             %policy power flow constraint
-            Pe(b,1) == Gff(b)*ue(f) + Gft(b)*ce(b) + Bft(b)*se(b); % P_ft b=ft
-            Qe(b,1) == -Bff(b)*ue(f) - Bft(b)*ce(b) + Gft(b)*se(b);
-            Pe(b,2) == Gtt(b)*ue(t) + Gtf(b)*ce(b) - Btf(b)*se(b); % P_tf b=ft
-            Qe(b,2) == -Btt(b)*ue(t) - Btf(b)*ce(b) - Gtf(b)*se(b);
+            Pn(b,1,:) == Gff(b)*ue(f,:) + Gft(b)*ce(b,:) + Bft(b)*se(b,:); % P_ft b=ft
+            Qn(b,1,:) == -Bff(b)*ue(f,:) - Bft(b)*ce(b,:) + Gft(b)*se(b,:);
+            Pn(b,2,:) == Gtt(b)*ue(t,:) + Gtf(b)*ce(b,:) - Btf(b)*se(b,:); % P_tf b=ft
+            Qn(b,2,:) == -Btt(b)*ue(t,:) - Btf(b)*ce(b,:) - Gtf(b)*se(b,:);
             
             %power loss nominal constraints
-            Pn(b,1,:) + Pn(b,2,:) >= 0;
+            Pn(b,1,:) + Pn(b,2,:) >= 0; %todo: matrix constraint
             
             %power loss finite reduction constraints (H=0 d=0)
             %APL(b) == (-((Gft(b)+Gtf(b))*ce(b,:)+(Bft(b)-Btf(b))*se(b,:)-Gff(b)*ue(f,:)-Gtt(b)*ue(t,:))); 
@@ -258,8 +261,8 @@ rho = 20
                 rho*(-oPL(b)*beta) <= sPL(b,i);
                 norm(-rho*(-((Gft(b)+Gtf(b))*ce(b,:)+(Bft(b)-Btf(b))*se(b,:)-Gff(b)*ue(f,:)-Gtt(b)*ue(t,:))),Inf) <= lambdaPL(b)
             end
-    end 
-   
+         
+    end
     
     disp(['Adding bus constraints...'])
     for b = 1:Nbus
@@ -282,7 +285,7 @@ rho = 20
             for g = 1:Nwind
                 if b == mpc.wind(g,1);
                     iswind =1;
-                    windIdx = g;
+                    wingIdx = g;
                     break
                 end
             end
@@ -306,33 +309,34 @@ rho = 20
                    sum(sum(N .* Pe(:,:,s))) == PGe(gIdx,s); %    segni?
                    sum(sum(N .* Qe(:,:,s))) == QGe(gIdx,s);
                end
-               % PG max magnitude finite reduction constraints
-                APGM(gIdx) == PGe(gIdx);
-                bPGM(gIdx) == PGn(gIdx) - mpc.gen(gIdx,PMAX);
-                for i = 1:Ns %todo: substitute with matrix multiplication constraint
-                    rho*(bPGM(gIdx)+(1-beta)*oPGM(gIdx)+APGM(gIdx)*S_error(:,i)) <= sPGM(gIdx,i);
-                    rho*(-oPGM(gIdx)*beta) <= sPGM(gIdx,i);
-                    norm(-rho*APGM(gIdx),Inf) <= lambdaPGM(gIdx);
-                end
-               % PG min magnitude finite reduction constraints
-                APGm(gIdx) == -PGe(gIdx);
-                bPGm(gIdx) == -PGn(gIdx) + mpc.gen(gIdx,PMIN);
-                for i = 1:Ns %todo: substitute with matrix multiplication constraint
-                    rho*(bPGm(gIdx)+(1-beta)*oPGm(gIdx)+APGm(gIdx)*S_error(:,i)) <= sPGm(gIdx,i);
-                    rho*(-oPGM(gIdx)*beta) <= sPGm(gIdx,i)
-                    norm(-rho*APGm(gIdx),Inf) <= lambdaPGm(gIdx);
-                end
-            end  
-            
-            if iswind == 1
-               %nominal constraint with wind power generator
-               sum(sum(N .* Pn)) == mpc.wind(windIdx,2) - mpc.bus(b,PD); 
-               sum(sum(N .* Qn)) == - mpc.bus(b,QD);
                
+               % PG max magnitude finite reduction constraints
+               %APGM(gIdx) == PGe(gIdx) ;
+               %bPGM(gIdx) == (PGn(gIdx) - mpc.gen(gIdx,PMAX));
+               for i = 1:Ns %todo: substitute with matrix multiplication constraint
+                   rho*((PGn(gIdx) - mpc.gen(gIdx,PMAX))+(1-beta)*oPGM(gIdx)+PGe(gIdx)*S_error(:,i)) <= sPGM(gIdx,i);
+                   rho*(-oPGM(gIdx)*beta) <= sPGM(gIdx,i);
+                   norm(-rho*PGe(gIdx),Inf) <= lambdaPGM(gIdx);
+               end
+               
+               % PG min magnitude finite reduction constraints
+               %APGm(gIdx) == (-PGe(gIdx));
+               %bPGm(gIdx) == (-PGn(gIdx) + mpc.gen(gIdx,PMIN));
+               for i = 1:Ns %todo: substitute with matrix multiplication constraint
+                   rho*((-PGn(gIdx) + mpc.gen(gIdx,PMIN))+(1-beta)*oPGm(gIdx)+(-PGe(gIdx))*S_error(:,i)) <= sPGm(gIdx,i);
+                   rho*(-oPGM(gIdx)*beta) <= sPGm(gIdx,i);
+                   norm(-rho*(-PGe(gIdx)),Inf) <= lambdaPGm(gIdx);
+               end
+               
+               
+            elseif iswind == 1
+               %nominal constraint with wind power generator
+               sum(sum(N .* Pn)) == mpc.wind(wingIdx,2) - mpc.bus(b,PD); 
+               sum(sum(N .* Qn)) == - mpc.bus(b,QD);
                for s = 1:Nxi
                %policy constraints with wind power generator P^Ge_g is a
                %e_g
-                   if s == windIdx
+                   if s == wingIdx
                        sum(sum(N .* Pe(:,:,s))) == 1; %    segni?
                        sum(sum(N .* Qe(:,:,s))) == 0;
                    else
@@ -358,26 +362,25 @@ rho = 20
         un(b) <= mpc.bus(b,VMAX)^2*un(refBus);
             
         %V max magnitude finite reduction constraints
-        AVM(b) == ue(b) - mpc.bus(b,VMAX)^2*ue(refBus);
-        bVM(b) == un(b) - mpc.bus(b,VMAX)^2*un(refBus);
+        %AVM(b) == (ue(b) - mpc.bus(b,VMAX)^2*ue(refBus));
+        %bVM(b) == (un(b) - mpc.bus(b,VMAX)^2*un(refBus));
             for i = 1:Ns %todo: substitute with matrix multiplication constraint
-                rho*(bVM(b)+(1-beta)*oVM(b)+AVM(b)*S_error(:,i)) <= sVM(b,i);
+                rho*((un(b) - mpc.bus(b,VMAX)^2*un(refBus))+(1-beta)*oVM(b)+(ue(b) - mpc.bus(b,VMAX)^2*ue(refBus))*S_error(:,i)) <= sVM(b,i);
                 rho*(-oVM(b)*beta) <= sVM(b,i);
-                norm(-rho*AVM(b),Inf) <= lambdaVM(b);
+                norm(-rho*(ue(b) - mpc.bus(b,VMAX)^2*ue(refBus)),Inf) <= lambdaVM(b);
             end
             
         %V min magnitude finite reduction constraints
-        AVm(b) == - ue(b) + mpc.bus(b,VMIN)^2*ue(refBus);
-        bVm(b) == - un(b) + mpc.bus(b,VMIN)^2*un(refBus);
+        %AVm(b) == (- ue(b) + mpc.bus(b,VMIN)^2*ue(refBus));
+        %bVm(b) == (- un(b) + mpc.bus(b,VMIN)^2*un(refBus));
             for i = 1:Ns %todo: substitute with matrix multiplication constraint
-                rho * (bVm(b) + (1-beta) * oVm(b)+AVm(b)*S_error(:,i)) <= sVm(b,i);
+                rho * ((- un(b) + mpc.bus(b,VMIN)^2*un(refBus)) + (1-beta) * oVm(b)+(- ue(b) + mpc.bus(b,VMIN)^2*ue(refBus))*S_error(:,i)) <= sVm(b,i);
                 rho*(-oVm(b)*beta) <= sVm(b,i);
-                norm(-rho*AVm(b),Inf) <= lambdaVm(b);
+                norm(-rho*(- ue(b) + mpc.bus(b,VMIN)^2*ue(refBus)),Inf) <= lambdaVm(b);
             end
-    end
            
-              
-    
+    end
+    disp(['Finished adding constraints, solving model...'])
     cvx_end 
 %end
 
