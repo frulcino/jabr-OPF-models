@@ -438,7 +438,7 @@ mpc.gencost = [
 	2	0	0	3	0.01	40	0;
 ];
 
-%Powerflow limit at each brunch p.u.
+%Powerflow limit at each branch p.u.
 mpc.Fmax = [500 % changed 
     500 ; % changed
     500 ;
@@ -630,7 +630,7 @@ mpc.Fmax = [500 % changed
 %% Nominal wind power injection
 % bus Pg
 mpc.wind = [
-    1 500;
-    9 500;
-    26 800;
+    1 300;  %500
+    9 300;  %500
+    26 300; %800
     ]

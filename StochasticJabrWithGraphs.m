@@ -118,7 +118,7 @@ disp(['.........................................................................
 %% Distribution Robust Optimization
 
 
-for id_eps = 1:3
+for id_eps = 1:length(epsilonMatrix)
     Varepsilon = epsilonMatrix(id_eps)
     for  id_rho = 1:length(rho_Matrix)
         rho = rho_Matrix(id_rho);
@@ -182,7 +182,7 @@ for id_eps = 1:3
         Fop = 0;
         % operation costs (avarage over dataset)
         for i = 1:Ngen
-            %should it be Ns*Pn?
+            %should it be Ns*Pn? Fop = Fop + sum( gencost(i,5)*(Ns * PGn(i) + PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1) ).^2 + gencost(i,6)*(Ns * PGn(i) + PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1)) + Ns*gencost(i,7));
             Fop = Fop + sum( gencost(i,5)*(PGn(i) + PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1) ).^2 + gencost(i,6)*(PGn(i) + PGe(i,1).*G_error_1(:,1) + PGe(i,2).*G_error_2(:,1) + PGe(i,3).*G_error_3(:,1)) + gencost(i,7));
         end
         Fop = Fop./Ns;
@@ -195,6 +195,14 @@ for id_eps = 1:3
         %%nominal line constraints:
         Pn(:,1).^2 + Qn(:,1).^2 <= mpc.Fmax*(un(refBus))*20;
         %Pn(:,2).^2 + Qn(:,2).^2 <= mpc.Fmax*(un(refBus))*1000;
+        
+        %power loss nominal constraints
+        Pn(:,1,:) + Pn(:,2,:) >= 0; % +376714
+        %V magnitude nominal constraints
+        un(:) >= 0;
+        un(:) >= mpc.bus(:,VMIN).^2*un(refBus);
+        un(:) <= mpc.bus(:,VMAX).^2*un(refBus);
+       
         for b = 1:Nbranch
 
             f = mpc.branch(b,1);%from
@@ -213,9 +221,6 @@ for id_eps = 1:3
                 Qe(b,1) == -Bff(b)*ue(f) - Bft(b)*ce(b) + Gft(b)*se(b);
                 Pe(b,2) == Gtt(b)*ue(t) + Gtf(b)*ce(b) - Btf(b)*se(b); % P_tf b=ft
                 Qe(b,2) == -Btt(b)*ue(t) - Btf(b)*ce(b) - Gtf(b)*se(b);
-
-                %power loss nominal constraints
-                Pn(b,1,:) + Pn(b,2,:) >= 0; %todo: matrix constraint
 
                 %power loss finite reduction constraints (H=0 d=0)
                 %APL(b) == (-((Gft(b)+Gtf(b))*ce(b,:)+(Bft(b)-Btf(b))*se(b,:)-Gff(b)*ue(f,:)-Gtt(b)*ue(t,:))); 
@@ -318,12 +323,6 @@ for id_eps = 1:3
                        sum(sum(N .* Qe(:,:,s))) == 0;
                    end
                 end
-
-            %V magnitude nominal constraints
-            un(b) >= 0;
-            un(b) >= mpc.bus(b,VMIN)^2*un(refBus);
-            un(b) <= mpc.bus(b,VMAX)^2*un(refBus);
-            %un(refBus) == 1
 
             %V max magnitude finite reduction constraints
             %AVM(b) == (ue(b) - mpc.bus(b,VMAX)^2*ue(refBus));
@@ -530,49 +529,48 @@ end
 filename = strcat(date, ' ','Powerflow_plot.png');
 saveas(gcf, filename);
 
-%%TEST 
+%% TEST 
+% 
+% for i = 1:6
+%     subplot(3,2,i)
+%     
+%     hold on;
+%     
+%     % Determine the number of scenarios/data points
+%     num_scenarios = size(Sn_data, 3);
+% 
+%     % Store legend entries
+%     leg_entries = cell(1, num_scenarios + 2); % +2 for 'Vmax' and 'Vmin'
+% 
+%     % Plotting the power flow values for all scenarios for the selected line
+%     for j = 1:3
+%         data = squeeze(Sn_data(sixlines(i),1,:,j))/(un(refBus)^2);
+%         plot(rho_Matrix, data, 'LineWidth', 1.5);
+% 
+%         % Generate legend entry for the current scenario
+%         leg_entries{j} = [char(949),'  = ', num2str(epsilonMatrix(j))];
+%     end
+%     
+%     % Plotting the nominal power flow limit of the selected line
+%     nominal_PMlimit = mpc.Fmax(sixlines(i)); % Fetching the max power flow
+%     plot(rho_Matrix, nominal_PMlimit .* ones(size(rho_Matrix)), 'k--', 'LineWidth', 2); % Using PMlimit, since PLlimit isn't defined in the code you provided
+%     
+%     % Add 'Vmax' and 'Vmin' to legend entries
+%     leg_entries{end-1} = 'Vmax';
+%     leg_entries{end} = 'Vmin';
+% 
+%     % Setting the legend
+%     %legend(leg_entries);
+%     
+%     xlabel('weight factor \rho')
+%     ylabel('Power flow through line (MW).')  
+%     title(['Power flow through line ', num2str(sixlines(i))]);
+%     set(gca,'FontSize',13);
+%     grid on
+% end
 
-for i = 1:6
-    subplot(3,2,i)
-    
-    hold on;
-    
-    % Determine the number of scenarios/data points
-    num_scenarios = size(Sn_data, 3);
 
-    % Store legend entries
-    leg_entries = cell(1, num_scenarios + 2); % +2 for 'Vmax' and 'Vmin'
-
-    % Plotting the power flow values for all scenarios for the selected line
-    for j = 1:num_scenarios
-        data = squeeze(Sn_data(sixlines(i),1,:,j))/(un(refBus)^2);
-        plot(rho_Matrix, data, 'LineWidth', 1.5);
-
-        % Generate legend entry for the current scenario
-        leg_entries{j} = [char(949),'  = ', num2str(epsilonMatrix(j))];
-    end
-    
-    % Plotting the nominal power flow limit of the selected line
-    nominal_PMlimit = mpc.Fmax(sixlines(i)); % Fetching the max power flow
-    plot(rho_Matrix, nominal_PMlimit .* ones(size(rho_Matrix)), 'k--', 'LineWidth', 2); % Using PMlimit, since PLlimit isn't defined in the code you provided
-    
-    % Add 'Vmax' and 'Vmin' to legend entries
-    leg_entries{end-1} = 'Vmax';
-    leg_entries{end} = 'Vmin';
-
-    % Setting the legend
-    legend(leg_entries);
-    
-    xlabel('weight factor \rho')
-    ylabel('Power flow through line (MW).')  
-    title(['Power flow through line ', num2str(sixlines(i))]);
-    set(gca,'FontSize',13);
-    grid on
-end
-
-
-
-filename = [datestr(now, 'yyyy-mm-dd_HH-MM-SS'), '.mat'];
+filename = strcat(date, ' ', '.mat');
 save(filename);
 
 

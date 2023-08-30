@@ -1,0 +1,161 @@
+%TEST out of sample performance on unused samples
+%[PGn, QGn, PGe, QGe, cn, sn, un, ce, se, ue, Pn, Qn, Pe, Qe, Fop, Frisk, F]
+%todo:
+%vectorize stuff
+%Add check for out of sample perf
+
+clc; clear all; close all;
+
+casename = "case118wind3.m";
+errors_name = "winderrors.mat"
+Ns = 4;
+Nxi = 3;
+beta = 0.01;
+define_constants;
+mpc = loadcase(casename)
+VarepsilonM = [0.03,0.06];
+rhoM = [400,800];
+n_Var = length(VarepsilonM);
+n_rho = length(rhoM);
+refBus = mpc.bus(mpc.bus(:,2) == 3,1); %reference bus index
+
+%n_gen ecc
+n_gen = size(mpc.gen,1)
+n_bus = size(mpc.bus,1)
+n_branch = size(mpc.branch,1)
+
+%% load out of sample samples
+data = load(errors_name)
+S_error = data.S_error
+outErr = S_error(Ns+1:size(S_error,1),:); %gets out of sample errors
+n_samples = length(outErr)
+
+%% Calculate Xi, based on samples
+PGmax = 2*max(abs(S_error),[],1); %should be specified in renewable energy specifics (corresponds to maximum power production capacity)
+L = diag(PGmax); %matrix mapping cube to Xi
+
+%%
+
+PG = zeros(n_rho, n_Var, n_samples, n_gen);
+U = zeros(n_rho, n_Var, n_samples, n_bus); %for voltage magnitude contraints
+Pn_data = zeros(n_rho, n_Var, n_samples, n_branch); %for power flow contraints (non imposed stochasticly on model, see how it goes)
+for r = 1:n_rho
+    rho = rhoM(r);
+    for e = 1:n_Var
+        Varepsilon = VarepsilonM(e);
+        [PGn, QGn, PGe, QGe, cn, sn, un, ce, se, ue, Pn, Qn, Pe, Qe, Fop, Frisk, F] = JDROOPF2(casename,errors_name,Ns, Nxi, beta, rho, Varepsilon);
+        %Calculate ectual values for each error sample with the policy
+        for j = 1:n_samples
+            %disp(['saving PG for ' num2str(j) '-th scenario'])
+            PG(r,e,j,:) = PGn + PGe*transpose(outErr(j,:));
+            U(r,e,j,:) = un + ue*transpose(outErr(j,:));
+        end
+        
+
+    end
+end
+
+%% Check for out of sample constraints violations
+%PG(e,j) = vector of power generation at each bus for i-th varepsilon and
+%j-th scenario
+NPGmax_violations = zeros(n_rho, n_Var, n_gen);
+PGmaxtot_violation = zeros(n_rho, n_Var, n_gen);
+NPGmin_violations = zeros(n_rho, n_Var, n_gen);
+PGmintot_violation = zeros(n_rho, n_Var, n_gen);
+n_UMaxViolation = zeros(n_rho, n_Var, n_bus);
+Tot_UMaxViolation = zeros(n_rho, n_Var, n_bus);
+n_UPosViolation = zeros(n_rho, n_Var, n_bus);
+Tot_UPosViolation = zeros(n_rho, n_Var, n_bus);
+
+
+for r = 1:n_rho
+    for e = 1:n_Var
+        %constraints violations on gen contraints
+        for g = 1:n_gen
+            NPGmax_violations(r,e,g) = 0;
+            PGmaxtot_violation(r,e,g) = 0;
+            NPGmin_violations(r,e,g) = 0;
+            PGmintot_violation(r,e,g) = 0;
+            for j = 1:n_samples
+                if PG(r,e,j,g) > mpc.gen(g,PMAX)
+                    NPGmax_violations(r,e,g) = NPGmax_violations(r,e,g) +1;
+                    PGmaxtot_violation(r,e,g) = PGmaxtot_violation(r,e,g) + PG(r,e,j,g) - mpc.gen(g,PMAX);
+                end
+                if PG(r,e,j,g) < mpc.gen(g,PMIN)
+                    NPGmin_violations(r,e,g) = NPGmin_violations(r,e,g) +1;
+                    PGmintot_violation(r,e,g) = PGmintot_violation(r,e,g) - PG(r,e,j,g) + mpc.gen(g,PMIN);
+                end
+            end
+        end
+        
+        %contraint violtations on bus constraints
+        for b = 1:n_bus
+            n_UMaxViolation(r,e,b) = 0;
+            Tot_UMaxViolation(r,e,b) = 0;
+            n_UPosViolation(r,e,b) = 0;
+            Tot_UPosViolation(r,e,b) = 0;
+            for j = 1:n_samples
+                if U(r,e,j,b) < 0
+                    n_UPosViolation(r,e,b) = n_UPosViolation(r,e,b) +1;
+                    Tot_UPosViolation(r,e,b) = Tot_UPosViolation(r,e,b) - U(r,e,j,b);
+                end
+                if U(r,e,j,b) > mpc.bus(b,VMAX)^2*un(refBus)
+                    n_UMaxViolation(r,e,b) = n_UMaxViolation(r,e,b) + 1;
+                    Tot_UMaxViolation(r,e,b) = Tot_UMaxViolation(r,e,b) + U(r,e,j,b) - mpc.bus(b,VMAX)^2*un(refBus)^2;
+                end
+                    
+            end
+        end
+        %constraint violation on line constraints
+    end
+end
+
+
+%% Plot Error Violations
+
+avNPGmax_violations = sum(NPGmax_violations,3)/n_samples;
+avPGmaxtot_violation = sum(PGmaxtot_violation,3)/n_samples;
+avNPGmin_violations = sum(NPGmin_violations,3)/n_samples;
+avPGmintot_violation = sum(PGmintot_violation,3)/n_samples;
+avTn_UMaxViolation = sum(n_UMaxViolation,3)/n_samples;
+avTot_UMaxViolation = sum(Tot_UMaxViolation,3)/n_samples;
+avn_UPosViolation = sum(n_UPosViolation,3)/n_samples;
+avTot_UPosViolation = sum(Tot_UPosViolation,3)/n_samples;
+
+% Define matrices
+% I'm assuming these matrices have already been defined and computed in your code.
+
+% Create a cell array of matrices for easy looping
+matrices = {avNPGmax_violations, avPGmaxtot_violation, avNPGmin_violations, avPGmintot_violation, ...
+            avTn_UMaxViolation, -avTot_UMaxViolation, avn_UPosViolation, avTot_UPosViolation};
+
+% Names for each matrix (for the title of the graph)
+matrixNames = {'TNPGmax\_violations', 'TPGmaxtot\_violation', 'TNPGmin\_violations', 'TPGmintot\_violation', ...
+               'Tn\_UMaxViolation', 'TTot\_UMaxViolation', 'Tn\_UPosViolation', 'TTot\_UPosViolation'};
+
+ylabelNames = {'n_MaxMagnitutePGViolations', 'Total_MaxMagnitutePGViolations', 'TNPGmin\_violations', 'TPGmintot\_violation', ...
+               'Tn\_UMaxViolation', 'TTot\_UMaxViolation', 'Tn\_UPosViolation', 'TTot\_UPosViolation'};           
+           
+% Loop through each matrix
+for m = 1:length(matrices)
+    figure; % Creates a new figure for each matrix
+    currentMatrix = matrices{m};
+    
+    % Loop through each row in the matrix and plot it as a separate line
+    for r = 1:size(currentMatrix, 2)
+        plot(rhoM,currentMatrix(:, r), 'DisplayName', ['Epsilon ' num2str(VarepsilonM(r))]);
+        hold on;
+    end
+    
+    title(['Average:',matrixNames{m}]);
+    xlabel('rho');
+    ylabel(ylabelNames{m});
+    legend('Location', 'best'); % Display legend to identify each row
+    grid on;
+    hold off;
+end
+
+%% Save
+filename = strcat(date, ' ', 'OutOfSampleTestJabr2.mat');
+save(filename);
+
